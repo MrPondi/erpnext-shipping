@@ -379,6 +379,7 @@ class SendCloudUtils:
 		# return SendCloud tracking data
 		shipment_id_list = shipment_id.split(", ")
 		awb_number, tracking_status, tracking_urls = [], [], []
+		parcels_read = parcels_delivered = 0
 
 		for ship_id in shipment_id_list:
 			try:
@@ -393,6 +394,7 @@ class SendCloudUtils:
 				show_error_alert("updating SendCloud Shipment")
 				continue
 
+			parcels_read += 1
 			parcel_data = tracking_data.get("parcel", {})
 
 			tracking_url = parcel_data.get("tracking_url")
@@ -406,10 +408,17 @@ class SendCloudUtils:
 			status_message = parcel_data.get("status", {}).get("message")
 			if status_message:
 				tracking_status.append(status_message)
+				if status_message == "Delivered":
+					parcels_delivered += 1
+
+		# Keep what the Shipment has when SendCloud couldn't be read
+		if not parcels_read:
+			return None
 
 		return {
 			"awb_number": ", ".join(awb_number),
-			"tracking_status": ", ".join(tracking_status),
+			# Shipment.tracking_status takes its options only: a shipment is delivered when all its parcels are
+			"tracking_status": "Delivered" if parcels_delivered == len(shipment_id_list) else "In Progress",
 			"tracking_status_info": ", ".join(tracking_status),
 			"tracking_url": ", ".join(tracking_urls),
 		}

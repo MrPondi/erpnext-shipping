@@ -6,7 +6,12 @@ import json
 import frappe
 from frappe import _
 
-from erpnext_shipping.erpnext_shipping.providers import ShipmentContext, get_provider, get_providers
+from erpnext_shipping.erpnext_shipping.providers import (
+	TRACKING_STATUSES,
+	ShipmentContext,
+	get_provider,
+	get_providers,
+)
 from erpnext_shipping.erpnext_shipping.utils import match_parcel_service_type_carrier, show_error_alert
 
 # The keys of tracking data, which are Shipment fields, and the Delivery Note fields they are written to
@@ -199,6 +204,13 @@ def set_tracking_data(shipment, tracking_data: dict, delivery_notes: list[str] |
 	"""
 	if isinstance(shipment, str):
 		shipment = frappe.get_doc("Shipment", shipment)
+
+	tracking_data = dict(tracking_data)
+	status = tracking_data.get("tracking_status")
+	if status and status not in TRACKING_STATUSES:
+		# Shipment.tracking_status takes its options only, so the provider's own words go to the info
+		tracking_data.setdefault("tracking_status_info", status)
+		tracking_data["tracking_status"] = "In Progress"
 
 	values = {key: tracking_data[key] for key in TRACKING_FIELDS if key in tracking_data}
 	if not values:

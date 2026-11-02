@@ -1,13 +1,14 @@
 # Copyright (c) 2020, Frappe and Contributors
 # See license.txt
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from requests.exceptions import HTTPError
 
 from erpnext_shipping.erpnext_shipping.doctype.sendcloud import sendcloud
-from erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud import SendCloudProvider
+from erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud import SendCloudProvider, SendCloudUtils
 from erpnext_shipping.erpnext_shipping.test_shipping import make_context
 
 
@@ -64,3 +65,48 @@ class TestSendCloudProvider(IntegrationTestCase):
 		SendCloudProvider().get_tracking_data(frappe._dict(shipment_id="1"))
 
 		self.utils.get_tracking_data.assert_called_once_with("1")
+
+
+class TestSendCloudTracking(IntegrationTestCase):
+	def get_tracking_data(self, *statuses):
+		"""The tracking of a shipment whose parcels have these statuses, None for one SendCloud can't read"""
+		responses = []
+		for index, status in enumerate(statuses):
+			response = MagicMock()
+			if status is None:
+				response.raise_for_status.side_effect = HTTPError("502 Bad Gateway")
+			response.json.return_value = {
+				"parcel": {
+					"tracking_number": f"T{index}",
+					"tracking_url": f"https://example.com/T{index}",
+					"status": {"message": status},
+				}
+			}
+			responses.append(response)
+
+		# Made without its settings, which only load while SendCloud is enabled
+		utils = SendCloudUtils.__new__(SendCloudUtils)
+		utils.api_key, utils.api_secret = "key", "secret"
+		with (
+			patch.object(sendcloud.requests, "get", side_effect=responses),
+			patch.object(sendcloud, "show_error_alert"),
+		):
+			return utils.get_tracking_data(", ".join(str(index) for index in range(len(statuses))))
+
+	def test_delivered_when_every_parcel_is(self):
+		tracking = self.get_tracking_data("Delivered", "Delivered")
+
+		self.assertEqual(tracking["tracking_status"], "Delivered")
+		self.assertEqual(tracking["tracking_status_info"], "Delivered, Delivered")
+
+	def test_in_progress_until_then(self):
+		tracking = self.get_tracking_data("Delivered", "En route to sorting center")
+
+		self.assertEqual(tracking["tracking_status"], "In Progress")
+		self.assertEqual(tracking["tracking_status_info"], "Delivered, En route to sorting center")
+
+	def test_a_parcel_that_cannot_be_read_is_not_delivered(self):
+		self.assertEqual(self.get_tracking_data("Delivered", None)["tracking_status"], "In Progress")
+
+	def test_nothing_when_no_parcel_can_be_read(self):
+		self.assertIsNone(self.get_tracking_data(None, None))

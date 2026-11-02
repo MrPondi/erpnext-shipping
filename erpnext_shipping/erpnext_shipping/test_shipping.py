@@ -17,6 +17,7 @@ from erpnext_shipping.erpnext_shipping import shipping
 from erpnext_shipping.erpnext_shipping.doctype.letmeship.letmeship import LetMeShipProvider
 from erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud import SendCloudProvider
 from erpnext_shipping.erpnext_shipping.providers import (
+	TRACKING_STATUSES,
 	ShipmentContext,
 	ShippingProvider,
 	get_provider,
@@ -26,6 +27,7 @@ from erpnext_shipping.erpnext_shipping.shipping import (
 	create_shipment,
 	fetch_shipping_rates,
 	print_shipping_label,
+	set_tracking_data,
 	update_tracking,
 )
 from erpnext_shipping.erpnext_shipping.utils import (
@@ -467,6 +469,21 @@ class TestShippingBooking(IntegrationTestCase):
 		self.assertEqual(
 			frappe.db.get_value("Delivery Note", delivery_note, ["tracking_number", "tracking_status"]),
 			("AWB-2", "In Progress"),
+		)
+
+	def test_tracking_statuses_are_the_shipment_options(self):
+		options = frappe.get_meta("Shipment").get_field("tracking_status").options.split("\n")
+
+		self.assertEqual([option for option in options if option], list(TRACKING_STATUSES))
+
+	def test_status_outside_the_options_is_in_progress(self):
+		shipment = make_shipment(service_provider="DHL", shipment_id="AH-1")
+
+		set_tracking_data(shipment.name, {"tracking_status": "In Transit"})
+
+		self.assertEqual(
+			frappe.db.get_value("Shipment", shipment.name, ["tracking_status", "tracking_status_info"]),
+			("In Progress", "In Transit"),
 		)
 
 	def test_provider_without_tracking_is_skipped(self):
