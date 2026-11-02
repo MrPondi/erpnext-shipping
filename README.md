@@ -43,6 +43,49 @@ You can see the list of shipping rates by clicking the `Fetch Shipping Rates` bu
 
 The service provider will also provide the shipping label and to generate the label, click on the `Print Shipping Label` on top of the doctype.
 
+## Adding a Shipping Provider
+
+Another app can add a provider without changing this one. It subclasses `ShippingProvider` and registers the class in its own `hooks.py`:
+
+```python
+# my_app/hooks.py
+required_apps = ["erpnext_shipping"]
+
+shipping_providers = {"My Carrier": "my_app.shipping.MyCarrierProvider"}
+```
+
+The name is what a Shipment stores as its Service Provider, so keep it once Shipments are booked with it. An app loaded later can register a name again to replace that provider. LetMeShip and SendCloud are registered the same way, in this app's `hooks.py`.
+
+```python
+# my_app/shipping.py
+from erpnext_shipping.erpnext_shipping.providers import ShippingProvider
+
+
+class MyCarrierProvider(ShippingProvider):
+	settings_doctype = "My Carrier Settings"  # a Single DocType with an "enabled" Check
+
+	def get_rates(self, context):
+		return [{"carrier": "DHL", "service_name": "Paket", "total_price": 18.5, "currency": "PLN", "service_id": "AH"}]
+
+	def create_shipment(self, context, service):
+		return {"shipment_id": "123", "carrier": "DHL", "carrier_service": "Paket", "shipment_amount": 18.5, "awb_number": "123"}
+
+	def get_labels(self, shipment):
+		return [pdf_bytes]  # or URLs
+
+	def get_tracking_data(self, shipment):
+		return {"awb_number": "123", "tracking_status": "In Progress", "tracking_status_info": "In transit", "tracking_url": "https://..."}
+```
+
+- `context` holds the shipment to quote or book: `pickup_address`, `delivery_address`, `pickup_contact`, `delivery_contact`, `parcels`, `description_of_content`, `pickup_date`, `value_of_goods`, `delivery_company_name`, and `doc`, the Shipment, for fields your app adds to it (a cash-on-delivery amount, a parcel locker). Each provider gets a copy of its own.
+- Keys of your own in a rate, such as `service_id`, come back to `create_shipment` in `service`. It is the rate as the browser sent it back, so don't rely on its price.
+- `get_labels` and `get_tracking_data` are optional. Labels can be PDF contents, which are attached to the Shipment, or URLs. `tracking_status` is one of In Progress, Delivered, Returned or Lost; any other value is stored as In Progress, with the text in Tracking Status Info.
+- Throw (`frappe.throw`) in `get_rates` for a problem the user can fix: the message is shown along with the other providers' rates. Any other error is logged, and the other providers' rates are still shown.
+- Override `is_enabled(context)` for settings that differ per company, and keep `__init__` cheap: providers are made for every call.
+- `show_error_alert` and `get_tracking_url` (in `erpnext_shipping.erpnext_shipping.utils`) help with errors and tracking links, and `set_tracking_data` (in `erpnext_shipping.erpnext_shipping.shipping`) stores tracking that reaches your app another way, such as a webhook.
+
+The types and docstrings in `erpnext_shipping/erpnext_shipping/providers.py` describe each method in full.
+
 -----------------------
 #### License
 
