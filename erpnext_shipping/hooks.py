@@ -129,3 +129,17 @@ doc_events = {
 		]
 	},
 }
+
+# Shipping Providers
+# ------------------
+# The providers a Shipment can get rates from and be booked with, as {"Name": "dotted.path.to.Class"}.
+# The name is what Shipment.service_provider stores. Another app adds its own in its hooks.py, with
+# erpnext_shipping in its required_apps:
+#
+# shipping_providers = {"My Carrier": "my_app.shipping.MyCarrierProvider"}
+#
+# The class subclasses erpnext_shipping.erpnext_shipping.providers.ShippingProvider, whose docstrings say
+# what each method gets and returns. When two apps register a name, the one loaded last wins, so an app can
+# replace a provider.
+
+shipping_providers = {}

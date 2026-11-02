@@ -84,6 +84,18 @@ def get_contact(contact_name):
 	return contact
 
 
+def get_delivery_company_name(shipment: str) -> str | None:
+	shipment_doc = frappe.get_doc("Shipment", shipment)
+	if shipment_doc.delivery_customer:
+		return frappe.db.get_value("Customer", shipment_doc.delivery_customer, "customer_name")
+	if shipment_doc.delivery_supplier:
+		return frappe.db.get_value("Supplier", shipment_doc.delivery_supplier, "supplier_name")
+	if shipment_doc.delivery_company:
+		return frappe.db.get_value("Company", shipment_doc.delivery_company, "company_name")
+
+	return None
+
+
 def match_parcel_service_type_carrier(
 	shipment_prices: list[dict], carrier_fieldname: str, service_fieldname: str
 ):

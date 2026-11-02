@@ -13,6 +13,7 @@ from erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud import SENDCL
 from erpnext_shipping.erpnext_shipping.utils import (
 	get_address,
 	get_contact,
+	get_delivery_company_name,
 	match_parcel_service_type_carrier,
 )
 
@@ -167,18 +168,6 @@ def create_shipment(
 			update_delivery_note(delivery_notes=delivery_notes, shipment_info=shipment_info)
 
 	return shipment_info
-
-
-def get_delivery_company_name(shipment: str) -> str | None:
-	shipment_doc = frappe.get_doc("Shipment", shipment)
-	if shipment_doc.delivery_customer:
-		return frappe.db.get_value("Customer", shipment_doc.delivery_customer, "customer_name")
-	if shipment_doc.delivery_supplier:
-		return frappe.db.get_value("Supplier", shipment_doc.delivery_supplier, "supplier_name")
-	if shipment_doc.delivery_company:
-		return frappe.db.get_value("Company", shipment_doc.delivery_company, "company_name")
-
-	return None
 
 
 @frappe.whitelist()
