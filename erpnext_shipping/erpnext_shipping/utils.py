@@ -104,9 +104,12 @@ def match_parcel_service_type_carrier(
 	)
 
 	for idx, prices in enumerate(shipment_prices):
-		service_name = match_parcel_service_type_alias(
-			prices.get(carrier_fieldname), prices.get(service_fieldname)
-		)
+		carrier = prices.get(carrier_fieldname)
+		service = prices.get(service_fieldname)
+		service_name = match_parcel_service_type_alias(service, carrier)
+		if service_name == service:
+			# Without an alias, the Parcel Service Type is named "{parcel_service} - {parcel_service_type}"
+			service_name = f"{carrier} - {service}"
 		is_preferred = frappe.db.get_value(
 			"Parcel Service Type", service_name, "show_in_preferred_services_list"
 		)

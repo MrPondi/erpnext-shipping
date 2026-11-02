@@ -28,7 +28,10 @@ from erpnext_shipping.erpnext_shipping.shipping import (
 	print_shipping_label,
 	update_tracking,
 )
-from erpnext_shipping.erpnext_shipping.utils import update_tracking_info_daily
+from erpnext_shipping.erpnext_shipping.utils import (
+	match_parcel_service_type_carrier,
+	update_tracking_info_daily,
+)
 
 PARCELS = [{"length": 30, "width": 20, "height": 10, "weight": 2, "count": 1}]
 
@@ -525,3 +528,39 @@ class TestShippingPermissions(IntegrationTestCase):
 		with patch.object(frappe.local, "request", frappe._dict(method="GET"), create=True):
 			for endpoint in (fetch_shipping_rates, create_shipment, print_shipping_label, update_tracking):
 				self.assertRaises(frappe.PermissionError, is_valid_http_method, endpoint)
+
+
+def make_parcel_service_type(parcel_service: str, service: str, aliases=(), preferred=1) -> str:
+	parcel_service_type = frappe.get_doc(
+		{
+			"doctype": "Parcel Service Type",
+			"parcel_service": parcel_service,
+			"parcel_service_type": service,
+			"show_in_preferred_services_list": preferred,
+			# The form sets the alias's parcel service from the type's
+			"parcel_service_type_alias": [
+				{"parcel_type_alias": alias, "parcel_service": parcel_service} for alias in aliases
+			],
+		}
+	)
+	return parcel_service_type.insert().name
+
+
+class TestPreferredServices(IntegrationTestCase):
+	def tearDown(self):
+		frappe.db.rollback()
+		super().tearDown()
+
+	def test_services_are_preferred_by_alias_or_name(self):
+		frappe.get_doc({"doctype": "Parcel Service", "parcel_service_name": "_Test DHL"}).insert()
+		make_parcel_service_type("_Test DHL", "Paket", aliases=["DHL Paket"])
+		make_parcel_service_type("_Test DHL", "Express")
+		make_parcel_service_type("_Test DHL", "Economy", preferred=0)
+		prices = [
+			frappe._dict(carrier="_Test DHL", service_name=service)
+			for service in ("DHL Paket", "Express", "Economy", "Unknown")
+		]
+
+		match_parcel_service_type_carrier(prices, "carrier", "service_name")
+
+		self.assertEqual([price.is_preferred for price in prices], [1, 1, None, None])
