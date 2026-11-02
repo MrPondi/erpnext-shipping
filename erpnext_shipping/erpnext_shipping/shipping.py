@@ -18,7 +18,7 @@ TRACKING_FIELDS = {
 }
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def fetch_shipping_rates(
 	pickup_from_type,
 	delivery_to_type,
@@ -33,6 +33,7 @@ def fetch_shipping_rates(
 	shipment=None,
 ):
 	# Return Shipping Rates for the various Shipping Providers
+	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
 	context = ShipmentContext(
 		pickup_from_type=pickup_from_type,
 		delivery_to_type=delivery_to_type,
@@ -73,7 +74,7 @@ def fetch_shipping_rates(
 	return shipment_prices
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def create_shipment(
 	shipment,
 	pickup_from_type,
@@ -91,6 +92,7 @@ def create_shipment(
 	delivery_contact_name=None,
 	delivery_notes=None,
 ):
+	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
 	if isinstance(delivery_notes, str):
 		delivery_notes = json.loads(delivery_notes)
 
@@ -135,8 +137,9 @@ def create_shipment(
 	return shipment_info
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def print_shipping_label(shipment: str):
+	frappe.has_permission("Shipment", "print", doc=shipment, throw=True)
 	shipment_doc = frappe.get_doc("Shipment", shipment)
 	provider = get_provider(shipment_doc.service_provider)
 	try:
@@ -170,9 +173,10 @@ def save_label_as_attachment(
 	return attachment.file_url
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def update_tracking(shipment, service_provider=None, shipment_id=None, delivery_notes=None):
 	# The provider and the shipment ID are read from the Shipment; the arguments stay for older callers
+	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
 	if isinstance(delivery_notes, str):
 		delivery_notes = json.loads(delivery_notes)
 

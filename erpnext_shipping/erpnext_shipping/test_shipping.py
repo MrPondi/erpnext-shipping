@@ -7,6 +7,7 @@ from io import BytesIO
 from unittest.mock import patch
 
 import frappe
+from frappe.handler import is_valid_http_method
 from frappe.model.document import Document
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
@@ -486,3 +487,41 @@ class TestShippingBooking(IntegrationTestCase):
 
 		self.assertEqual(frappe.db.get_value("Shipment", shipment.name, "awb_number"), "AWB-2")
 		log_error.assert_called_once()
+
+
+class TestShippingPermissions(IntegrationTestCase):
+	def tearDown(self):
+		frappe.db.rollback()
+		super().tearDown()
+
+	def test_endpoints_need_permission_on_the_shipment(self):
+		shipment = make_shipment(service_provider="DHL", shipment_id="AH-1")
+		rates_args = shipment_args(shipment=shipment.name)
+		rates_args["parcels"] = json.dumps(rates_args["parcels"])
+		booking_args = shipment_args(
+			shipment=shipment.name, service_data=json.dumps({"service_provider": "DHL"})
+		)
+		booking_args["shipment_parcel"] = json.dumps(booking_args.pop("parcels"))
+		user = frappe.get_doc(
+			{
+				"doctype": "User",
+				"email": "shipping-tester@example.com",
+				"first_name": "Shipping Tester",
+				"send_welcome_email": 0,
+				"roles": [{"role": "Website Manager"}],
+			}
+		).insert()
+
+		with (
+			self.set_user(user.name),
+			self.patch_hooks({"shipping_providers": {"DHL": path(CarrierProvider)}}),
+		):
+			self.assertRaises(frappe.PermissionError, fetch_shipping_rates, **rates_args)
+			self.assertRaises(frappe.PermissionError, create_shipment, **booking_args)
+			self.assertRaises(frappe.PermissionError, print_shipping_label, shipment.name)
+			self.assertRaises(frappe.PermissionError, update_tracking, shipment.name)
+
+	def test_endpoints_refuse_get(self):
+		with patch.object(frappe.local, "request", frappe._dict(method="GET"), create=True):
+			for endpoint in (fetch_shipping_rates, create_shipment, print_shipping_label, update_tracking):
+				self.assertRaises(frappe.PermissionError, is_valid_http_method, endpoint)
