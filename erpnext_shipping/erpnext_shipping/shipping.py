@@ -1,21 +1,21 @@
 # Copyright (c) 2020, Frappe Technologies and contributors
 # For license information, please see license.txt
+import copy
 import json
 
 import frappe
-from erpnext.stock.doctype.shipment.shipment import get_company_contact
+from frappe import _
 
-from erpnext_shipping.erpnext_shipping.doctype.letmeship.letmeship import (
-	LETMESHIP_PROVIDER,
-	get_letmeship_utils,
-)
-from erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud import SENDCLOUD_PROVIDER, SendCloudUtils
-from erpnext_shipping.erpnext_shipping.utils import (
-	get_address,
-	get_contact,
-	get_delivery_company_name,
-	match_parcel_service_type_carrier,
-)
+from erpnext_shipping.erpnext_shipping.providers import ShipmentContext, get_provider, get_providers
+from erpnext_shipping.erpnext_shipping.utils import match_parcel_service_type_carrier, show_error_alert
+
+# The keys of tracking data, which are Shipment fields, and the Delivery Note fields they are written to
+TRACKING_FIELDS = {
+	"awb_number": "tracking_number",
+	"tracking_status": "tracking_status",
+	"tracking_status_info": "tracking_status_info",
+	"tracking_url": "tracking_url",
+}
 
 
 @frappe.whitelist()
@@ -30,55 +30,44 @@ def fetch_shipping_rates(
 	value_of_goods,
 	pickup_contact_name=None,
 	delivery_contact_name=None,
+	shipment=None,
 ):
 	# Return Shipping Rates for the various Shipping Providers
+	context = ShipmentContext(
+		pickup_from_type=pickup_from_type,
+		delivery_to_type=delivery_to_type,
+		pickup_address_name=pickup_address_name,
+		delivery_address_name=delivery_address_name,
+		parcels=parcels,
+		description_of_content=description_of_content,
+		pickup_date=pickup_date,
+		value_of_goods=value_of_goods,
+		pickup_contact_name=pickup_contact_name,
+		delivery_contact_name=delivery_contact_name,
+		shipment=shipment,
+	)
+
 	shipment_prices = []
-	letmeship_enabled = frappe.db.get_single_value("LetMeShip", "enabled")
-	sendcloud_enabled = frappe.db.get_single_value("SendCloud", "enabled")
-	pickup_address = get_address(pickup_address_name)
-	delivery_address = get_address(delivery_address_name)
-	parcels = json.loads(parcels)
+	for provider in get_providers():
+		# Each provider gets a copy, as providers change the addresses and contacts to suit their APIs
+		provider_context = copy.deepcopy(context)
+		try:
+			if not provider.is_enabled(provider_context):
+				continue
+			prices = [
+				frappe._dict(price, service_provider=provider.name)
+				for price in provider.get_rates(provider_context) or []
+			]
+		except frappe.ValidationError:
+			# The provider's message is shown with the other providers' rates
+			continue
+		except Exception:
+			show_error_alert(f"fetching {provider.name} prices")
+			continue
 
-	if letmeship_enabled:
-		pickup_contact = None
-		delivery_contact = None
-		if pickup_from_type != "Company":
-			pickup_contact = get_contact(pickup_contact_name)
-		else:
-			pickup_contact = get_company_contact(user=pickup_contact_name)
-			pickup_contact.email_id = pickup_contact.pop("email", None)
+		shipment_prices += prices
 
-		delivery_contact = get_contact(delivery_contact_name)
-
-		letmeship = get_letmeship_utils()
-		letmeship_prices = (
-			letmeship.get_available_services(
-				delivery_to_type=delivery_to_type,
-				pickup_address=pickup_address,
-				delivery_address=delivery_address,
-				parcels=parcels,
-				description_of_content=description_of_content,
-				pickup_date=pickup_date,
-				value_of_goods=value_of_goods,
-				pickup_contact=pickup_contact,
-				delivery_contact=delivery_contact,
-			)
-			or []
-		)
-		letmeship_prices = match_parcel_service_type_carrier(letmeship_prices, "carrier", "service_name")
-		shipment_prices += letmeship_prices
-
-	if sendcloud_enabled:
-		sendcloud = SendCloudUtils()
-		sendcloud_prices = (
-			sendcloud.get_available_services(
-				delivery_address=delivery_address, pickup_address=pickup_address, parcels=parcels
-			)
-			or []
-		)
-		sendcloud_prices = match_parcel_service_type_carrier(sendcloud_prices, "carrier", "service_name")
-		shipment_prices += sendcloud_prices
-
+	shipment_prices = match_parcel_service_type_carrier(shipment_prices, "carrier", "service_name")
 	shipment_prices = [item for item in shipment_prices if "total_price" in item]
 	shipment_prices = sorted(shipment_prices, key=lambda k: k["total_price"])
 	return shipment_prices
@@ -109,48 +98,24 @@ def create_shipment(
 		delivery_notes = []
 
 	service_info = json.loads(service_data)
-	shipment_info, pickup_contact, delivery_contact = None, None, None
-	pickup_address = get_address(pickup_address_name)
-	delivery_address = get_address(delivery_address_name)
-	delivery_company_name = get_delivery_company_name(shipment)
-
-	if pickup_from_type != "Company":
-		pickup_contact = get_contact(pickup_contact_name)
-
-	else:
-		pickup_contact = get_company_contact(user=pickup_contact_name)
-		pickup_contact.email_id = pickup_contact.pop("email", None)
-
-	delivery_contact = get_contact(delivery_contact_name)
-
-	if service_info["service_provider"] == LETMESHIP_PROVIDER:
-		letmeship = get_letmeship_utils()
-		shipment_info = letmeship.create_shipment(
-			pickup_address=pickup_address,
-			delivery_company_name=delivery_company_name,
-			delivery_address=delivery_address,
-			shipment_parcel=shipment_parcel,
-			description_of_content=description_of_content,
-			pickup_date=pickup_date,
-			value_of_goods=value_of_goods,
-			pickup_contact=pickup_contact,
-			delivery_contact=delivery_contact,
-			service_info=service_info,
-		)
-
-	if service_info["service_provider"] == SENDCLOUD_PROVIDER:
-		sendcloud = SendCloudUtils()
-		shipment_info = sendcloud.create_shipment(
-			shipment=shipment,
-			delivery_address=delivery_address,
-			pickup_address=pickup_address,
-			pickup_contact=pickup_contact,
-			shipment_parcel=shipment_parcel,
-			delivery_contact=delivery_contact,
-			service_info=service_info,
-		)
+	provider = get_provider(service_info.get("service_provider"))
+	context = ShipmentContext(
+		pickup_from_type=pickup_from_type,
+		delivery_to_type=delivery_to_type,
+		pickup_address_name=pickup_address_name,
+		delivery_address_name=delivery_address_name,
+		parcels=shipment_parcel,
+		description_of_content=description_of_content,
+		pickup_date=pickup_date,
+		value_of_goods=value_of_goods,
+		pickup_contact_name=pickup_contact_name,
+		delivery_contact_name=delivery_contact_name,
+		shipment=shipment,
+	)
+	shipment_info = provider.create_shipment(context, service_info)
 
 	if shipment_info:
+		shipment_info["service_provider"] = provider.name
 		shipment = frappe.get_doc("Shipment", shipment)
 		shipment.db_set(
 			{
@@ -173,31 +138,29 @@ def create_shipment(
 @frappe.whitelist()
 def print_shipping_label(shipment: str):
 	shipment_doc = frappe.get_doc("Shipment", shipment)
-	service_provider = shipment_doc.service_provider
-	shipment_id = shipment_doc.shipment_id
+	provider = get_provider(shipment_doc.service_provider)
+	try:
+		labels = provider.get_labels(shipment_doc) or []
+	except NotImplementedError:
+		frappe.throw(_("{0} does not provide shipping labels.").format(provider.name))
 
-	if service_provider == LETMESHIP_PROVIDER:
-		letmeship = get_letmeship_utils()
-		shipping_label = letmeship.get_label(shipment_id)
-	elif service_provider == SENDCLOUD_PROVIDER:
-		sendcloud = SendCloudUtils()
-		shipping_label = []
-		_labels = sendcloud.get_label(shipment_id)
-		for i, label_url in enumerate(_labels, start=1):
-			content = sendcloud.download_label(label_url)
-			file_url = save_label_as_attachment(shipment, content, i)
-			shipping_label.append(file_url)
-
-	return shipping_label
+	# PDF contents are attached to the Shipment, URLs are opened as they are
+	return [
+		save_label_as_attachment(shipment, label, index) if isinstance(label, bytes) else label
+		for index, label in enumerate(labels, start=1)
+		if label
+	]
 
 
-def save_label_as_attachment(shipment: str, content: bytes, index: int = None) -> str:
+def save_label_as_attachment(
+	shipment: str, content: bytes, index: int | None = None, file_extension: str = "pdf"
+) -> str:
 	"""Store label as attachment to Shipment and return the URL."""
 	attachment = frappe.new_doc("File")
 	if index is not None:
-		attachment.file_name = f"label_{shipment}_{index}.pdf"
+		attachment.file_name = f"label_{shipment}_{index}.{file_extension}"
 	else:
-		attachment.file_name = f"label_{shipment}.pdf"
+		attachment.file_name = f"label_{shipment}.{file_extension}"
 	attachment.content = content
 	attachment.folder = "Home/Attachments"
 	attachment.attached_to_doctype = "Shipment"
@@ -208,35 +171,39 @@ def save_label_as_attachment(shipment: str, content: bytes, index: int = None) -
 
 
 @frappe.whitelist()
-def update_tracking(shipment, service_provider, shipment_id, delivery_notes=None):
+def update_tracking(shipment, service_provider=None, shipment_id=None, delivery_notes=None):
+	# The provider and the shipment ID are read from the Shipment; the arguments stay for older callers
 	if isinstance(delivery_notes, str):
 		delivery_notes = json.loads(delivery_notes)
 
-	if delivery_notes is None:
-		delivery_notes = []
-
-	# Update Tracking info in Shipment
-	tracking_data = None
-	if service_provider == LETMESHIP_PROVIDER:
-		letmeship = get_letmeship_utils()
-		tracking_data = letmeship.get_tracking_data(shipment_id)
-	elif service_provider == SENDCLOUD_PROVIDER:
-		sendcloud = SendCloudUtils()
-		tracking_data = sendcloud.get_tracking_data(shipment_id)
-
-	if not tracking_data:
+	shipment_doc = frappe.get_doc("Shipment", shipment)
+	provider = get_provider(shipment_doc.service_provider)
+	try:
+		tracking_data = provider.get_tracking_data(shipment_doc)
+	except NotImplementedError:
 		return
 
-	shipment = frappe.get_doc("Shipment", shipment)
-	shipment.db_set(
-		{
-			"awb_number": tracking_data.get("awb_number"),
-			"tracking_status": tracking_data.get("tracking_status"),
-			"tracking_status_info": tracking_data.get("tracking_status_info"),
-			"tracking_url": tracking_data.get("tracking_url"),
-		}
-	)
+	if tracking_data:
+		set_tracking_data(shipment_doc, tracking_data, delivery_notes)
 
+
+def set_tracking_data(shipment, tracking_data: dict, delivery_notes: list[str] | None = None):
+	"""
+	Write tracking data of a provider to the Shipment and to its Delivery Notes, or to the ones
+	`delivery_notes` names. Only the keys the data has are written. For provider apps that get tracking
+	from a webhook of their own, too.
+	"""
+	if isinstance(shipment, str):
+		shipment = frappe.get_doc("Shipment", shipment)
+
+	values = {key: tracking_data[key] for key in TRACKING_FIELDS if key in tracking_data}
+	if not values:
+		return
+
+	shipment.db_set(values)
+
+	if delivery_notes is None:
+		delivery_notes = [row.delivery_note for row in shipment.shipment_delivery_note]
 	if delivery_notes:
 		update_delivery_note(delivery_notes=delivery_notes, tracking_info=tracking_data)
 
@@ -253,7 +220,6 @@ def update_delivery_note(delivery_notes, shipment_info=None, tracking_info=None)
 			dl_doc.db_set("parcel_service", shipment_info.get("carrier"))
 			dl_doc.db_set("parcel_service_type", shipment_info.get("carrier_service"))
 		if tracking_info:
-			dl_doc.db_set("tracking_number", tracking_info.get("awb_number"))
-			dl_doc.db_set("tracking_url", tracking_info.get("tracking_url"))
-			dl_doc.db_set("tracking_status", tracking_info.get("tracking_status"))
-			dl_doc.db_set("tracking_status_info", tracking_info.get("tracking_status_info"))
+			for key, fieldname in TRACKING_FIELDS.items():
+				if key in tracking_info:
+					dl_doc.db_set(fieldname, tracking_info[key])

@@ -1,7 +1,6 @@
 # Copyright (c) 2020, Frappe Technologies and contributors
 # For license information, please see license.txt
 
-import json
 import re
 from json import dumps as json_dumps
 
@@ -12,6 +11,7 @@ from frappe.model.document import Document
 from frappe.utils.data import cint, flt, get_link_to_form
 from requests.exceptions import HTTPError
 
+from erpnext_shipping.erpnext_shipping.providers import ShippingProvider
 from erpnext_shipping.erpnext_shipping.utils import show_error_alert
 
 LETMESHIP_PROVIDER = "LetMeShip"
@@ -130,7 +130,7 @@ class LetMeShipUtils:
 		pickup_address,
 		delivery_company_name,
 		delivery_address,
-		shipment_parcel,
+		parcels,
 		description_of_content,
 		pickup_date,
 		value_of_goods,
@@ -138,7 +138,6 @@ class LetMeShipUtils:
 		pickup_contact=None,
 		delivery_contact=None,
 	):
-		parcels = json.loads(shipment_parcel)
 		if not self.validate_parcels(parcels):
 			frappe.throw(_("LetMeShip booking needs parcel dimensions (length, width, height)."))
 
@@ -192,7 +191,7 @@ class LetMeShipUtils:
 			if "documents" in shipment_label_response_data:
 				for label in shipment_label_response_data["documents"]:
 					if "data" in label:
-						return json.dumps(label["data"])
+						return label["data"]
 			else:
 				frappe.throw(
 					_("Error occurred while printing Shipment: {0}").format(
@@ -369,6 +368,45 @@ class LetMeShipUtils:
 				if (parcel.get(field) or 0) < 1:
 					return False
 		return True
+
+
+class LetMeShipProvider(ShippingProvider):
+	settings_doctype = "LetMeShip"
+
+	def get_rates(self, context):
+		return get_letmeship_utils().get_available_services(
+			delivery_to_type=context.delivery_to_type,
+			pickup_address=context.pickup_address,
+			delivery_address=context.delivery_address,
+			parcels=context.parcels,
+			description_of_content=context.description_of_content,
+			pickup_date=context.pickup_date,
+			value_of_goods=context.value_of_goods,
+			pickup_contact=context.pickup_contact,
+			delivery_contact=context.delivery_contact,
+		)
+
+	def create_shipment(self, context, service):
+		return get_letmeship_utils().create_shipment(
+			pickup_address=context.pickup_address,
+			delivery_company_name=context.delivery_company_name,
+			delivery_address=context.delivery_address,
+			parcels=context.parcels,
+			description_of_content=context.description_of_content,
+			pickup_date=context.pickup_date,
+			value_of_goods=context.value_of_goods,
+			pickup_contact=context.pickup_contact,
+			delivery_contact=context.delivery_contact,
+			service_info=service,
+		)
+
+	def get_labels(self, shipment):
+		data = get_letmeship_utils().get_label(shipment.shipment_id)
+		# The PDF comes as a list of byte values, taken modulo 256 as the browser's Uint8Array used to
+		return [bytes(byte % 256 for byte in data)] if data else []
+
+	def get_tracking_data(self, shipment):
+		return get_letmeship_utils().get_tracking_data(shipment.shipment_id)
 
 
 def get_letmeship_utils() -> "LetMeShipUtils":

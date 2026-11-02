@@ -12,6 +12,7 @@ from frappe.utils import flt
 from frappe.utils.data import get_link_to_form
 from requests.exceptions import HTTPError
 
+from erpnext_shipping.erpnext_shipping.providers import ShippingProvider
 from erpnext_shipping.erpnext_shipping.utils import show_error_alert
 
 SENDCLOUD_PROVIDER = "SendCloud"
@@ -28,6 +29,37 @@ PARCELS_URL = f"{BASE_URL}/v2/parcels"
 
 class SendCloud(Document):
 	pass
+
+
+class SendCloudProvider(ShippingProvider):
+	settings_doctype = "SendCloud"
+
+	def get_rates(self, context):
+		return SendCloudUtils().get_available_services(
+			delivery_address=context.delivery_address,
+			pickup_address=context.pickup_address,
+			parcels=context.parcels,
+		)
+
+	def create_shipment(self, context, service):
+		return SendCloudUtils().create_shipment(
+			shipment=context.shipment,
+			pickup_address=context.pickup_address,
+			pickup_contact=context.pickup_contact,
+			delivery_address=context.delivery_address,
+			delivery_contact=context.delivery_contact,
+			service_info=service,
+			shipment_parcels=context.parcels,
+		)
+
+	def get_labels(self, shipment):
+		sendcloud = SendCloudUtils()
+		return [
+			sendcloud.download_label(label_url) for label_url in sendcloud.get_label(shipment.shipment_id)
+		]
+
+	def get_tracking_data(self, shipment):
+		return SendCloudUtils().get_tracking_data(shipment.shipment_id)
 
 
 class SendCloudUtils:
@@ -121,14 +153,14 @@ class SendCloudUtils:
 		delivery_address,
 		delivery_contact,
 		service_info,
-		shipment_parcel,
+		shipment_parcels,
 	):
 		if not self.enabled or not self.api_key or not self.api_secret:
 			return []
 
 		parcels = []
 		index = 0
-		for parcel in json.loads(shipment_parcel):
+		for parcel in shipment_parcels:
 			self.warn_partial_dimensions(parcel)
 			for _parcel in range(parcel.get("count", 1)):
 				index += 1

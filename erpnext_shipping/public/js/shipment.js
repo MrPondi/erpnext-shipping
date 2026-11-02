@@ -63,6 +63,7 @@ frappe.ui.form.on("Shipment", {
 				freeze: true,
 				freeze_message: __("Fetching Shipping Rates"),
 				args: {
+					shipment: frm.doc.name,
 					pickup_from_type: frm.doc.pickup_from_type,
 					delivery_to_type: frm.doc.delivery_to_type,
 					pickup_address_name: frm.doc.pickup_address_name,
@@ -103,20 +104,7 @@ frappe.ui.form.on("Shipment", {
 			},
 			callback: function (r) {
 				if (r.message) {
-					if (frm.doc.service_provider == "LetMeShip") {
-						var array = JSON.parse(r.message);
-						// Uint8Array for unsigned bytes
-						array = new Uint8Array(array);
-						const file = new Blob([array], { type: "application/pdf" });
-						const file_url = URL.createObjectURL(file);
-						window.open(file_url);
-					} else {
-						if (Array.isArray(r.message)) {
-							r.message.forEach((url) => window.open(url));
-						} else {
-							window.open(r.message);
-						}
-					}
+					r.message.forEach((url) => window.open(url));
 				}
 			},
 		});

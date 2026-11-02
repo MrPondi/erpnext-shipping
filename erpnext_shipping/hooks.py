@@ -142,4 +142,7 @@ doc_events = {
 # what each method gets and returns. When two apps register a name, the one loaded last wins, so an app can
 # replace a provider.
 
-shipping_providers = {}
+shipping_providers = {
+	"LetMeShip": "erpnext_shipping.erpnext_shipping.doctype.letmeship.letmeship.LetMeShipProvider",
+	"SendCloud": "erpnext_shipping.erpnext_shipping.doctype.sendcloud.sendcloud.SendCloudProvider",
+}
