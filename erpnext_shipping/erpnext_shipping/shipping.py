@@ -25,17 +25,17 @@ TRACKING_FIELDS = {
 
 @frappe.whitelist(methods=["POST"])
 def fetch_shipping_rates(
-	pickup_from_type,
-	delivery_to_type,
-	pickup_address_name,
-	delivery_address_name,
-	parcels,
-	description_of_content,
-	pickup_date,
-	value_of_goods,
-	pickup_contact_name=None,
-	delivery_contact_name=None,
-	shipment=None,
+	pickup_from_type: str,
+	delivery_to_type: str,
+	pickup_address_name: str,
+	delivery_address_name: str,
+	parcels: list[dict] | str,
+	description_of_content: str,
+	pickup_date: str,
+	value_of_goods: float | str,
+	pickup_contact_name: str | None = None,
+	delivery_contact_name: str | None = None,
+	shipment: str | None = None,
 ):
 	# Return Shipping Rates for the various Shipping Providers
 	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
@@ -81,21 +81,21 @@ def fetch_shipping_rates(
 
 @frappe.whitelist(methods=["POST"])
 def create_shipment(
-	shipment,
-	pickup_from_type,
-	delivery_to_type,
-	pickup_address_name,
-	delivery_address_name,
-	shipment_parcel,
-	description_of_content,
-	pickup_date,
-	value_of_goods,
-	service_data,
-	shipment_notific_email=None,
-	tracking_notific_email=None,
-	pickup_contact_name=None,
-	delivery_contact_name=None,
-	delivery_notes=None,
+	shipment: str,
+	pickup_from_type: str,
+	delivery_to_type: str,
+	pickup_address_name: str,
+	delivery_address_name: str,
+	shipment_parcel: list[dict] | str,
+	description_of_content: str,
+	pickup_date: str,
+	value_of_goods: float | str,
+	service_data: str,
+	shipment_notific_email: str | None = None,
+	tracking_notific_email: str | None = None,
+	pickup_contact_name: str | None = None,
+	delivery_contact_name: str | None = None,
+	delivery_notes: list[str] | str | None = None,
 ):
 	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
 	if isinstance(delivery_notes, str):
@@ -179,7 +179,12 @@ def save_label_as_attachment(
 
 
 @frappe.whitelist(methods=["POST"])
-def update_tracking(shipment, service_provider=None, shipment_id=None, delivery_notes=None):
+def update_tracking(
+	shipment: str,
+	service_provider: str | None = None,
+	shipment_id: str | None = None,
+	delivery_notes: list[str] | str | None = None,
+):
 	# The provider and the shipment ID are read from the Shipment; the arguments stay for older callers
 	frappe.has_permission("Shipment", "write", doc=shipment, throw=True)
 	if isinstance(delivery_notes, str):

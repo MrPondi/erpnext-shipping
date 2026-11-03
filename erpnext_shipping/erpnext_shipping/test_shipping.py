@@ -7,6 +7,7 @@ from io import BytesIO
 from unittest.mock import patch
 
 import frappe
+from frappe import _
 from frappe.handler import is_valid_http_method
 from frappe.model.document import Document
 from frappe.tests import IntegrationTestCase
@@ -119,7 +120,7 @@ class MalformedProvider(FakeProvider):
 
 class ThrowingProvider(FakeProvider):
 	def get_rates(self, context):
-		frappe.throw("No service to this country")
+		frappe.throw(_("No service to this country"))
 
 
 class DisabledProvider(FakeProvider):
@@ -341,7 +342,7 @@ class TestShippingRates(IntegrationTestCase):
 		return rates, show_error_alert
 
 	def test_rates_of_the_enabled_providers_by_price(self):
-		rates, _ = self.fetch_rates({"DHL": path(CarrierProvider), "Off": path(DisabledProvider)})
+		rates = self.fetch_rates({"DHL": path(CarrierProvider), "Off": path(DisabledProvider)})[0]
 
 		self.assertEqual(
 			[(rate.service_provider, rate.service_name) for rate in rates],
