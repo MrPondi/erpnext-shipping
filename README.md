@@ -14,6 +14,7 @@ A Shipping Integration for ERPNext with various platforms. Platforms integrated 
 - Printing the shipping label is also made available within the Shipment doctype.
 - Templates for the parcel dimensions.
 - Shipment tracking.
+- Shipments made from a Delivery Note start with their parcels, pickup date and description of content.
 
 ## Installation
 
@@ -42,6 +43,18 @@ You can see the list of shipping rates by clicking the `Fetch Shipping Rates` bu
 ![71bcfc9d-9d66-4a58-8238-1eeab4e9a24f 2020-08-05 09-48-32](https://user-images.githubusercontent.com/17470909/89377478-78944980-d724-11ea-8120-a5374c6e4c5e.png)
 
 The service provider will also provide the shipping label and to generate the label, click on the `Print Shipping Label` on top of the doctype.
+
+## Shipments from Delivery Notes
+
+**Create > Shipment** on a Delivery Note opens a Shipment with these filled in:
+
+- **Parcels**: a row for each stock item of the Delivery Note, as many as are delivered. Its size is the Item's package: the **Package Length**, **Package Width** and **Package Height** (cm) this app adds to the Item, under **Weight Per Unit** in the Inventory tab. Its weight is the Weight Per Unit, converted from the Item's Weight UOM to kilograms; a weight without a Weight UOM is taken as kilograms. An item whose package has neither a size nor a weight gets no row, and a message names it.
+- **Pickup Date**: today, if today is a workday and it is before **Same-Day Pickup Until** in **Shipping Settings** (12:00 unless you change it), else the next workday. Workdays are the days the pickup Company's **Default Holiday List** doesn't have as holidays. Without a list, and on the days a list doesn't cover, they are Monday to Friday. A Holiday List gets its weekends with **Add to Holidays** and the public holidays with **Add Local Holidays**; extend it, or make the next one, before its To Date.
+- **Description of Content**: the items by their names on the Delivery Note, on one line, with how many there are unless it's one: `2 x Lawn Mower, Engine Oil`.
+
+Change what doesn't fit before saving. A Delivery Note added to the Shipment afterwards adds no parcels or names.
+
+This app fills them in by overriding ERPNext's `erpnext.stock.doctype.delivery_note.delivery_note.make_shipment` (`override_whitelisted_methods` in `hooks.py`). If another app overrides it as well, the app loaded last wins.
 
 ## Adding a Shipping Provider
 

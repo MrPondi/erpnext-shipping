@@ -72,7 +72,38 @@ def get_custom_fields():
 				"translatable": 0,
 				"insert_after": "tracking_status",
 			},
-		]
+		],
+		# The package one stock unit ships in, which the parcels of a Shipment made from a Delivery Note are
+		# sized as. Their weight is the Item's Weight Per Unit.
+		"Item": [
+			{
+				"fieldname": "package_length",
+				"label": _("Package Length (cm)"),
+				"fieldtype": "Float",
+				"non_negative": 1,
+				"depends_on": "eval:doc.is_stock_item",
+				"description": _(
+					"Of the package one stock unit ships in. A Shipment made from a Delivery Note takes its parcels from the package and the Weight Per Unit."
+				),
+				"insert_after": "weight_uom",
+			},
+			{
+				"fieldname": "package_width",
+				"label": _("Package Width (cm)"),
+				"fieldtype": "Float",
+				"non_negative": 1,
+				"depends_on": "eval:doc.is_stock_item",
+				"insert_after": "package_length",
+			},
+			{
+				"fieldname": "package_height",
+				"label": _("Package Height (cm)"),
+				"fieldtype": "Float",
+				"non_negative": 1,
+				"depends_on": "eval:doc.is_stock_item",
+				"insert_after": "package_width",
+			},
+		],
 	}
 
 

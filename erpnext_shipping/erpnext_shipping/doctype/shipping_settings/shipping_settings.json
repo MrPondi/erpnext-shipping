@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "creation": "2026-11-02 13:59:49.158773",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "same_day_pickup_until"
+ ],
+ "fields": [
+  {
+   "default": "12:00",
+   "description": "A Shipment made from a Delivery Note before this time is picked up the same day, if it's a workday, and one made later on the next workday. Leave it empty to always pick up on the next workday. Workdays are the days the Company's Default Holiday List doesn't have as holidays. Without a list, and on days outside it, they are Monday to Friday.",
+   "fieldname": "same_day_pickup_until",
+   "fieldtype": "Time",
+   "label": "Same-Day Pickup Until"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-02 13:59:49.158773",
+ "modified_by": "Administrator",
+ "module": "ERPNext Shipping",
+ "name": "Shipping Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

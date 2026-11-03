@@ -106,11 +106,15 @@ scheduler_events = {"daily": ["erpnext_shipping.erpnext_shipping.utils.update_tr
 
 # Overriding Methods
 # ------------------------------
-#
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "erpnext_shipping.event.get_events"
-# }
-#
+
+# A Shipment made from a Delivery Note starts with its parcels, pickup date and description of content. When
+# another app overrides make_shipment as well, the one loaded last wins.
+override_whitelisted_methods = {
+	"erpnext.stock.doctype.delivery_note.delivery_note.make_shipment": (
+		"erpnext_shipping.erpnext_shipping.shipment_defaults.make_shipment"
+	),
+}
+
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps

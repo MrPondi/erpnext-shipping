@@ -33,6 +33,17 @@
    "collapsible": 1,
    "indent": 0,
    "keep_closed": 0,
+   "label": "Shipping Settings",
+   "link_to": "Shipping Settings",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "indent": 0,
+   "keep_closed": 0,
    "label": "SendCloud",
    "link_to": "SendCloud",
    "link_type": "DocType",
@@ -74,7 +85,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-07-06 22:12:29.764809",
+ "modified": "2026-11-02 13:59:49.158773",
  "modified_by": "Administrator",
  "module": "ERPNext Shipping",
  "name": "Shipping",
